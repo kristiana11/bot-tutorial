@@ -4,11 +4,11 @@ from github import Github, GithubIntegration
 
 app = Flask(__name__)
 
-app_id = '<your_app_number_here>'
+app_id = 825949
 
 # Read the bot certificate
 with open(
-        os.path.normpath(os.path.expanduser('bot_key.pem')),
+        os.path.normpath(os.path.expanduser('my-frist-github-app.2024-02-11.private-key.pem')),
         'r'
 ) as cert_file:
     app_key = cert_file.read()
