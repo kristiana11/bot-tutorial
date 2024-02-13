@@ -30,26 +30,20 @@ def pr_opened_event(repo, payload):
                    f"The repository maintainers will look into it ASAP! :speech_balloon:"
         pr.create_comment(f"{response}")
         pr.add_to_labels("needs review")
-    
-def delete_branch(repo, payload):
-    branch_name = payload['pull_request']['head']['ref']
-    branch = repo.get_git_ref("heads/%s" % branch_name)
-    branch.delete()
 
-def pr_closed_event(repo, payload):
+def pr_accepted_event(repo, payload):
     pr = repo.get_issue(number=payload['pull_request']['number'])
     author = pr.user.login
 
-    merged_by = payload['pull_request']['merged_by']['login']
+ 
+    response = f"Thanks for this pull request, @{author}! " \
+                f"The repository maintainers merged it! :moyai:"
+    pr.create_comment(f"{response}")
+    pr.add_to_labels("needs review")
 
-    #is_first_pr = repo.get_issues(creator=author).totalCount
-    is_merged_pr = payload['pull_request']['merged']
-    if is_merged_pr == True:
-        response = f"Thanks for merge this pull request, @{merged_by}! " \
-                   f"@{author} ur issue is closed! :tada:"
-        pr.create_comment(f"{response}")
-        delete_branch(repo, payload)
-    
+    pullrequest_branch = payload['pull_request']['head']['ref']
+    branch = repo.get_git_ref(f"heads/{pullrequest_branch}")
+    branch.delete()
 
 @app.route("/", methods=['POST'])
 def bot():
@@ -71,12 +65,12 @@ def bot():
     # Check if the event is a GitHub pull request creation event
     if all(k in payload.keys() for k in ['action', 'pull_request']) and payload['action'] == 'opened':
         pr_opened_event(repo, payload)
-    # Check if PR are merged
-    elif all(k in payload.keys() for k in ['action', 'pull_request']) and payload['action'] == 'closed':
-        pr_closed_event(repo, payload)
+
+    if all(k in payload.keys() for k in ['action', 'pull_request']) and payload['pull_request']['merged']:
+        pr_accepted_event(repo, payload)
+
 
     return "", 204
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
-
