@@ -4,7 +4,7 @@ from github import Github, GithubIntegration
 
 app = Flask(__name__)
 
-app_id = "825949"
+app_id = '825949'
 
 # Read the bot certificate
 with open(
@@ -20,65 +20,46 @@ git_integration = GithubIntegration(
 )
 
 def pr_opened_event(repo, payload):
-    pr = repo.get_issue(number=payload["pull_request"]["number"])
+    pr = repo.get_issue(number=payload['pull_request']['number'])
     author = pr.user.login
 
     is_first_pr = repo.get_issues(creator=author).totalCount
 
     if is_first_pr == 1:
-        response = (
-            f"Thanks for opening this pull request, @{author}! "
-            f"The repository maintainers will look into it ASAP! :speech_balloon:"
-        )
+        response = f"Thanks for opening this pull request, @{author}! " \
+                   f"The repository maintainers will look into it ASAP! :speech_balloon:"
         pr.create_comment(f"{response}")
         pr.add_to_labels("needs review")
+    
+def delete_branch(repo, payload):
+    branch_name = payload['pull_request']['head']['ref']
+    branch = repo.get_git_ref("heads/%s" % branch_name)
+    branch.delete()
 
-
-def pr_merged_event(repo, payload):
-    pr = repo.get_issue(number=payload["pull_request"]["number"])
+def pr_closed_event(repo, payload):
+    pr = repo.get_issue(number=payload['pull_request']['number'])
     author = pr.user.login
 
-    if payload["pull_request"]["merged"]:
-        response = (
-            f"Your pull request has been successfully merged, @{author}. Thanks !"
-        )
-    pr.create_comment(f"{response}")
-    pr.add_to_labels("accepted")
+    merged_by = payload['pull_request']['merged_by']['login']
 
+    #is_first_pr = repo.get_issues(creator=author).totalCount
+    is_merged_pr = payload['pull_request']['merged']
+    if is_merged_pr == True:
+        response = f"Thanks for merge this pull request, @{merged_by}! " \
+                   f"@{author} ur issue is closed! :tada:"
+        pr.create_comment(f"{response}")
+        delete_branch(repo, payload)
+    
 
-def pr_delete_merged_branch(repo, payload):
-    pr = repo.get_issue(number=payload["pull_request"]["number"])
-    author = pr.user.login
-    if payload["pull_request"]["merged"]:
-        branch_name = payload["pull_request"]["head"]["ref"]
-        repo.get_git_ref(f"heads/{branch_name}").delete()
-    pr.create_comment("Branch deleted")
-    pr.add_to_labels("deleted")
-
-
-def pr_prevent_wip(repo, payload):
-    pr = repo.get_issue(number=payload["pull_request"]["number"])
-    author = pr.user.login
-    sha = payload["pull_request"]["head"]["sha"]
-    if (
-        payload["pull_request"]["title"].contains("wip")
-        or payload["pull_request"]["title"].contains("work in progress")
-        or payload["pull_request"]["title"].contains("do not merge")
-    ):
-        repo.get_commit(sha=sha, state="pending")
-        pr.add_to_labels("pending")
-    pr.add_to_labels("success")
-
-
-@app.route("/", methods=["POST"])
+@app.route("/", methods=['POST'])
 def bot():
     payload = request.json
 
-    if not "repository" in payload.keys():
+    if not 'repository' in payload.keys():
         return "", 204
 
-    owner = payload["repository"]["owner"]["login"]
-    repo_name = payload["repository"]["name"]
+    owner = payload['repository']['owner']['login']
+    repo_name = payload['repository']['name']
 
     git_connection = Github(
         login_or_token=git_integration.get_access_token(
@@ -88,27 +69,14 @@ def bot():
     repo = git_connection.get_repo(f"{owner}/{repo_name}")
 
     # Check if the event is a GitHub pull request creation event
-    if (
-        all(k in payload.keys() for k in ["action", "pull_request"])
-        and payload["action"] == "opened"
-    ):
+    if all(k in payload.keys() for k in ['action', 'pull_request']) and payload['action'] == 'opened':
         pr_opened_event(repo, payload)
-
-    if (
-        all(k in payload.keys() for k in ["action", "pull_request"])
-        and payload["action"] == "closed"
-    ):
-        pr_merged_event(repo, payload)
-        pr_delete_merged_branch(repo, payload)
-
-    if (
-        all(k in payload.keys() for k in ["action", "pull_request"])
-        and payload["action"] == "edited"
-    ):
-        pr_prevent_wip(repo, payload)
+    # Check if PR are merged
+    elif all(k in payload.keys() for k in ['action', 'pull_request']) and payload['action'] == 'closed':
+        pr_closed_event(repo, payload)
 
     return "", 204
 
-
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
