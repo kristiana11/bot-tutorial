@@ -25,7 +25,7 @@ def pr_opened_event(repo, payload):
 
     is_first_pr = repo.get_issues(creator=author).totalCount
 
-    if is_first_pr == 1:
+    if is_first_pr == 16:
         response = f"Thanks for opening this pull request, @{author}! " \
                    f"The repository maintainers will look into it ASAP! :speech_balloon:"
         pr.create_comment(f"{response}")
