@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from github import Github, GithubIntegration
 
 app = Flask(__name__)
@@ -19,9 +19,20 @@ git_integration = GithubIntegration(
     app_key,
 )
 
+# Dictionary to store contributors' points
+contributors_points = {}
+
 def pr_opened_event(repo, payload):
     pr = repo.get_issue(number=payload["pull_request"]["number"])
     author = pr.user.login
+
+    # Increment the points of the contributor by 10 when they open a pull request
+    contributors_points[author] = contributors_points.get(author, 0) + 10
+
+    # Print out the points of each contributor
+    points_message = "\n\nCurrent points:\n"
+    for contributor, points in contributors_points.items():
+        points_message += f"@{contributor}: {points}\n"
 
     is_first_pr = repo.get_issues(creator=author).totalCount
 
@@ -29,6 +40,7 @@ def pr_opened_event(repo, payload):
         response = (
             f"Thanks for opening this pull request, @{author}! "
             f"The repository maintainers will look into it ASAP! :speech_balloon:"
+            f"{points_message}"  # Include the points message in the response
         )
         pr.create_comment(f"{response}")
         pr.add_to_labels("needs review")
@@ -39,8 +51,17 @@ def pr_merged_event(repo, payload):
     author = pr.user.login
 
     if payload["pull_request"]["merged"]:
+        # Increment the points of the contributor by 50 when their pull request is merged
+        contributors_points[author] = contributors_points.get(author, 0) + 50
+
+        # Print out the points of each contributor
+        points_message = "\n\nCurrent points:\n"
+        for contributor, points in contributors_points.items():
+            points_message += f"@{contributor}: {points}\n"
+
         response = (
             f"Your pull request has been successfully merged, @{author}. Thanks !"
+            f"{points_message}"  # Include the points message in the response
         )
     pr.create_comment(f"{response}")
     pr.add_to_labels("accepted")
@@ -109,6 +130,10 @@ def bot():
 
     return "", 204
 
+
+@app.route("/points", methods=["GET"])
+def get_contributors_points():
+    return jsonify(contributors_points)
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
